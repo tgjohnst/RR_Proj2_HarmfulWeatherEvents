@@ -1,0 +1,36 @@
+---
+title: "Analysis of harm caused by severe weather events"
+author: Timothy Johnstone
+output: 
+  html_document:
+    keep_md: true
+---
+
+## Synopsis
+
+*describes and summarizes the data analysis in less than 10 sentences*
+
+## Data Processing
+
+Data were made available via the Coursera site as a bzipped csv file, and are originally provided by the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. Original documentation can be found [here](http://www.ncdc.noaa.gov/stormevents/pd01016005curr.pdf).
+
+The first step is to read in the data from the bz2 file provided.
+
+```{r}
+
+```
+
+
+## Results
+
+### Effects of severe weather events on population health
+
+Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+### Economic consequences of severe weather events
+
+Across the United States, which types of events have the greatest economic consequences?
+
+## Conclusions
+
+*At most 3 figures*
