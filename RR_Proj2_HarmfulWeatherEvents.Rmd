@@ -1,9 +1,10 @@
 ---
 title: "Analysis of harm caused by severe weather events"
-author: Timothy Johnstone
-output: 
+author: "Timothy Johnstone"
+output:
   html_document:
-    keep_md: true
+    keep_md: yes
+  pdf_document: default
 ---
 
 ## Synopsis
@@ -12,13 +13,80 @@ output:
 
 ## Data Processing
 
+Before starting any analysis, we load all external libraries required for the code below. Note that this analysis requires the following libraries: *ggplot2*, *Hmisc*
+```{r}
+require(ggplot2)
+require(Hmisc)
+```
+
+
 Data were made available via the Coursera site as a bzipped csv file, and are originally provided by the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. Original documentation can be found [here](http://www.ncdc.noaa.gov/stormevents/pd01016005curr.pdf).
 
 The first step is to read in the data from the bz2 file provided.
 
 ```{r}
-
+# read.csv should handle bzip compressed files automatically, but we use bzfile just in case 
+weather <- read.csv(bzfile('repdata_data_StormData.csv.bz2'), header=T, na.strings = "")
 ```
+
+Before working with the dataset, let's make sure it loaded in properly by checking the first few columns:
+```{r}
+summary(weather[,1:10])
+```
+
+Since the weather events are organized by when they occurred, we'll check the distribution over the years to get an idea of the density over time.
+
+```{r}
+# Properly format dates as posix dates and plot begin dates on a histogram
+weather$BGN_DATE <- as.Date(weather$BGN_DATE, format = "%m/%d/%Y %H:%M:%S")
+hist(weather$BGN_DATE, 
+     col="steelblue",
+     xlab="Year", breaks=40,
+     main="Distribution of severe weather observations over time")
+weather$END_DATE <- format(as.Date(weather$END_DATE, format = "%m/%d/%Y %H:%M:%S"), "%m/%d/%Y")
+```
+
+By eye, it seems like the observations start increasing around 1990. Since there's likely to be missing and/or lower quality data before this point, let's just check that we won't be eliminating too much of the dataset by subsetting to dates after 1990. We do this by looking at the decile cutoffs for our date set. 
+```{r}
+as.Date(quantile(as.numeric(weather$BGN_DATE), seq(0.1, 1, by=0.1)), origin="1970-01-01")
+```
+It looks like we'll be eliminating less than 20% of the observations in order to ensure higher quality/frequency of observations. This will also make the dataset easier to work with, so let's do it!
+```{r}
+cutoff1990 <- as.numeric(as.Date("01/01/1990", format = "%m/%d/%Y"))
+weather <- weather[as.numeric(weather$BGN_DATE) >= cutoff1990,]
+# I would plot another histogram to see that the distribution is more balanced, but we are limited to 3 plots in our output...........
+#hist(weather$BGN_DATE, 
+#     col="steelblue",
+#     xlab="Year", breaks=20,
+#     main="Distribution of severe weather observations over time, after date filtering")
+```
+This looks like a more balanced distribution.
+
+Now we can also subset the table to just the columns that we will be using for the weather consequences analysis. This will shrink the table and make the data easier to work with. Preserved columns are the following:
+
+| Variable Name | Description                                            |  
+|---------------|--------------------------------------------------------|  
+| BGN_DATE      | The date (mm-dd-yyyy) of the severe weather event      |  
+| EVTYPE        | The type of weather event e.g. thunderstorm            |  
+| FATALITIES    | Number of fatalities resulting from the weather event  |  
+| INJURIES      | Number of injuries resulting from the weather event    |  
+| PROPDMG       | Property damage, in USD                                |  
+| PROPDMGEXP    | Multiplier for property damage, according to NOAA code |  
+| CROPDMG       | Agricultural crop damage, in USD                       |  
+| CROPDMGEXP    | Multiplier for crop damage, according to NOAA code     |  
+
+```{r}
+weather <- weather[, c("EVTYPE","FATALITIES","INJURIES", "PROPDMG", "PROPDMGEXP", "CROPDMG", "CROPDMGEXP")]
+```
+
+Next, we have to process a few columns which use specific encoding of exponents in order to recover the original numeric values. Looking at the original codebook, there are two columns, *PROPDMGEXP* and *CROPDMGEXP*, that represent the size units of the *PROPDMG* and *CROPDMG* columns respectively. 
+
+```{r}
+levels(weather$PROPDMGEXP)
+levels(weather$CROPDMGEXP)
+```
+
+Though I could not find information as to the codes in the NOAA database handbook, 
 
 
 ## Results
