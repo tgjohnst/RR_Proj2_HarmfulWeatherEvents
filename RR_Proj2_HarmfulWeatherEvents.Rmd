@@ -9,14 +9,16 @@ output:
 
 ## Synopsis
 
-*describes and summarizes the data analysis in less than 10 sentences*
+*The following analysis breaks down the harm caused by severe weather events since 1990. We examine population health effects (injuries/fatalities) to find the most consistently harmful weather types as well as the most harmful overall. We also examine economic damages to find the most consistently damaging weather types as well as the most harmful overall.*
 
 ## Data Processing
 
-Before starting any analysis, we load all external libraries required for the code below. Note that this analysis requires the following libraries: *ggplot2*, *Hmisc*
-```{r}
+Before starting any analysis, we load all external libraries required for the code below. Note that this analysis requires the following libraries: *ggplot2*, *Hmisc*, *xtable*
+
+```{r message=F, warning=F}
 require(ggplot2)
 require(Hmisc)
+require(xtable)
 ```
 
 
@@ -25,6 +27,7 @@ Data were made available via the Coursera site as a bzipped csv file, and are or
 The first step is to read in the data from the bz2 file provided.
 
 ```{r}
+setwd("Z:/Lotus/Dropbox/Coursera/5_Reproducible_Research/Projects/RR_Proj2_HarmfulWeatherEvents")
 # read.csv should handle bzip compressed files automatically, but we use bzfile just in case 
 weather <- read.csv(bzfile('repdata_data_StormData.csv.bz2'), header=T, na.strings = "")
 ```
@@ -84,21 +87,329 @@ Next, we have to process a few columns which use specific encoding of exponents 
 ```{r}
 levels(weather$PROPDMGEXP)
 levels(weather$CROPDMGEXP)
+#So what are all possible exponent representations that we will have to deal with?
+exps <- c(NA,union(levels(weather$PROPDMGEXP), levels(weather$CROPDMGEXP)))
+exps
 ```
 
-Though I could not find information as to the codes in the NOAA database handbook, 
+Though I could not find information regarding some codes (+,-,?) in the NOAA database handbook, the others are easily interpretable and must be converted before they can be applied to the DMG columns. There's no good way to do this automatically, so I will make a translation table and use it on both crop and prop damage. I will assume that damage codes of +, -, and ? should be translated to 1e0, meaning they will not exponentiate the damage value.
+
+```{r}
+translateExp <- data.frame("exp"=exps,
+                           "num"=c(1e0, 1e0, 1e0, 1e0,
+                                   1e0, 1e1, 1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8,
+                                   1e9, 1e2, 1e2, 1e3, 1e6, 1e6, 1e3))
+weather$CROPDMGabs <- weather$CROPDMG * translateExp$num[match(weather$CROPDMGEXP,translateExp$exp)]
+weather$PROPDMGabs <- weather$PROPDMG * translateExp$num[match(weather$PROPDMGEXP,translateExp$exp)]
+```
 
 
 ## Results
 
 ### Effects of severe weather events on population health
 
-Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+**Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?**
+
+#### Injuries by severe weather type
+
+First, let's aggregate injuries by weather type and take a look at the total/average injuries for each type of weather event.
+
+```{r}
+# Aggregate by type and sort descending by # of injuries
+injByType_total <- aggregate(INJURIES ~ EVTYPE, data=weather, sum, na.rm=T)
+injByType_total <- injByType_total[order(-injByType_total$INJURIES),]
+injByType_mean <- aggregate(INJURIES ~ EVTYPE, data=weather, mean, na.rm=T)
+injByType_mean <- injByType_mean[order(-injByType_mean$INJURIES),]
+tail(injByType_total)
+```
+
+Note here that we see 3 different entries for the same weather type (WINTERY MIX, Wintry Mix, Wintry mix), indicating some inconsistencies in coding the data collection. In a real-world scenario, these should probably be merged, but for this assignment they will be kept separate. 
+
+We also check how many of them result in any injuries at all - cursory glances at the table show a lot of zeroes. 
+
+```{r}
+# Check how many weather event types result in any recorded injuries
+injuriousTypes <- sum(injByType_total$INJURIES>0)/nrow(injByType_total)*100
+```
+
+Only `r injuriousTypes`% of weather types result in any injuries. 
+
+Next, let's actually take a look at the most injuring weather types. We do this with a table to enumerate the top 10 most damaging weather types, in terms of total and average injuries reported/recorded.
+
+**Total Injuries**
+
+```{r results="asis"}
+# Print the top 10 most injuring weather types, by total injuries
+print(xtable(injByType_total[1:10,1:2]), type='html')
+```
+
+
+**Average Injuries**
+
+```{r results="asis"}
+# Print the top 10 most injuring weather types, by mean injuries
+print(xtable(injByType_mean[1:10,1:2]), type='html')
+```
+
+As you can see, the top ten events in terms of total injuries differ from the top event types in terms of average injuries. Tornadoes and floods have caused the most injuries overall since 1990, but heat waves, wild fires, and thunderstorms are the most consistently injurious.
+
+#### Fatalities by severe weather type
+First, let's aggregate fatalities by weather type and take a look at the total/average deaths for each type of weather event.
+
+```{r}
+# Aggregate by type and sort descending by # of fatalities
+fatByType_total <- aggregate(FATALITIES ~ EVTYPE, data=weather, sum, na.rm=T)
+fatByType_total <- fatByType_total[order(-fatByType_total$FATALITIES),]
+fatByType_mean <- aggregate(FATALITIES ~ EVTYPE, data=weather, mean, na.rm=T)
+fatByType_mean <- fatByType_mean[order(-fatByType_mean$FATALITIES),]
+tail(fatByType_total)
+```
+
+We also check how many of them result in any fatalities at all, as again, cursory glances at the table show a lot of zeroes. 
+
+```{r}
+# Check how many weather event types result in any recorded injuries
+fatalTypes <- sum(fatByType_total$FATALITIES>0)/nrow(fatByType_total)*100
+```
+
+Only `r fatalTypes`% of weather types result in any deaths. 
+
+Next, let's actually take a look at the most fatal weather types. We do this with a table to enumerate the top 10 most fatal weather types, in terms of total and average deaths reported/recorded.
+
+**Total Fatalities**
+
+```{r results="asis"}
+# Print the top 10 most injuring weather types, by total injuries
+print(xtable(fatByType_total[1:10,1:2]), type='html')
+```
+
+**Average Fatalities**
+
+```{r results="asis"}
+# Print the top 10 most injuring weather types, by mean injuries
+print(xtable(fatByType_mean[1:10,1:2]), type='html')
+```
+
+As you can see, the top ten events in terms of total deaths are pretty similar to the top event types in terms of average deaths. Excessive heat, tornadoes and floods have caused the most deaths overall since 1990, with tornadoes, cold/snow, and heat waves being the most consistently fatal. It is worth noting that there is significant redundancy in the reported weather types (e.g. excessive heat, extreme heat, heat waves) and proper treatment of these event types would increase the accuracy of this analysis.
+
+#### Overall population health effects of severe weather
+
+Now let's combine the injury and fatality data and look at the aggregate as a reflection of population health effects.
+
+```{r}
+allByType_total <- merge(injByType_total, fatByType_total, by="EVTYPE")
+allByType_total$TOTAL <- allByType_total$INJURIES + allByType_total$FATALITIES
+allByType_total <- allByType_total[order(-allByType_total$TOTAL),]
+allByType_mean <- merge(injByType_mean, fatByType_mean, by="EVTYPE")
+allByType_mean$TOTAL <- allByType_mean$INJURIES + allByType_mean$FATALITIES
+allByType_mean <- allByType_mean[order(-allByType_mean$TOTAL),]
+```
+
+We then print the top 10 by mean and total, sorted by the sum of injuries and fatalities caused aka the total health events
+
+**Total Health Events**
+
+```{r results="asis"}
+print(xtable(allByType_total[1:10,1:4]), type='html')
+```
+
+
+**Mean Total Health Events**
+
+```{r results="asis"}
+print(xtable(allByType_mean[1:10,1:4]), type='html')
+```
+
+
+We can visualize this in a two-panel horizontal barplot of the most harmful weather types (in descending order, sorted by total harm and total mean harm). 
+
+```{r results="asis", fig.width=9}
+# Prepare the data to be plotted
+par(mar=c(5,7,3,3), mfrow=c(1,2))
+colorsUsed <- c("slateblue","red4")
+# Plot total effects
+barplot(t(as.matrix(allByType_total[20:1,2:3])),
+        horiz=T,
+        names.arg = allByType_total[20:1,1],
+        las=1,
+        main="Total population effects (fatalities/injuries)\n due to weather events since 1990",
+        xlab="Total injuries/fatalities",
+        col=colorsUsed,
+        cex.main=0.8,
+        cex.names = 0.7
+)
+legend("right", col=colorsUsed, legend = c("Injuries","Fatalities"), pch=19)
+# Plot mean effects
+barplot(t(as.matrix(allByType_mean[20:1,2:3])),
+        horiz=T,
+        names.arg = allByType_mean[20:1,1],
+        las=1,
+        main="Average population effects (fatalities/injuries)\n due to weather events since 1990",
+        xlab="Mean injuries/fatalities per event",
+        col=colorsUsed,
+        cex.main=0.8,
+        cex.names=0.7
+)
+legend("right", col=colorsUsed, legend = c("Injuries","Fatalities"), pch=19)
+```
+
+Excessive heat, tornadoes and floods have caused the most population effects overall since 1990, with heat waves, tropical storms, and wildfires being the most consistently damaging (injuries/fatalities.
 
 ### Economic consequences of severe weather events
 
 Across the United States, which types of events have the greatest economic consequences?
 
+#### Property Damage
+
+First, let's aggregate property damage by weather type and take a look at the total/average damage for each type of weather event.
+
+```{r}
+# Aggregate by type and sort descending by # of injuries
+propByType_total <- aggregate(PROPDMGabs ~ EVTYPE, data=weather, sum, na.rm=T)
+propByType_total <- propByType_total[order(-propByType_total$PROPDMGabs),]
+propByType_mean <- aggregate(PROPDMGabs ~ EVTYPE, data=weather, mean, na.rm=T)
+propByType_mean <- propByType_mean[order(-propByType_mean$PROPDMGabs),]
+tail(propByType_total)
+```
+
+We also check how many of them result in any property damage at all - cursory glances at the table show a lot of zeroes. 
+
+```{r}
+# Check how many weather event types result in any recorded injuries
+propTypes <- sum(propByType_total$PROPDMGabs>0)/nrow(propByType_total)*100
+```
+
+`r propTypes`% of weather types results in recorded property damage. 
+
+Next, let's actually take a look at the most damaging weather types. We do this with a table to enumerate the top 10 most damaging weather types, in terms of total and average property dagmage reported/recorded.
+
+
+**Total Property Damage**
+
+```{r results="asis"}
+# Print the top 10 most damaging weather types, by total damage
+print(xtable(propByType_total[1:10,1:2]), type='html')
+```
+
+
+**Average Property Damage**
+
+```{r results="asis"}
+# Print the top 10 most damaging weather types, by mean damage
+print(xtable(propByType_mean[1:10,1:2]), type='html')
+```
+
+As you can see, the top ten events in terms of total property damage differ slightly from the top event types in terms of average property damage. Floods, hurricanes, and storm surges have caused the most damage overall since 1990, but tornadoes, heavy rain, and hurricanes are the most consistently damaging to property.
+
+#### Crop damage by severe weather type
+First, let's aggregate crop damage by weather type and take a look at the total/average recorded damage for each type of weather event.
+
+```{r}
+# Aggregate by type and sort descending by # of fatalities
+cropByType_total <- aggregate(CROPDMGabs ~ EVTYPE, data=weather, sum, na.rm=T)
+cropByType_total <- cropByType_total[order(-cropByType_total$CROPDMGabs),]
+cropByType_mean <- aggregate(CROPDMGabs ~ EVTYPE, data=weather, mean, na.rm=T)
+cropByType_mean <- cropByType_mean[order(-cropByType_mean$CROPDMGabs),]
+tail(cropByType_total)
+```
+
+We also check how many of them result in any crop damage at all, as again, cursory glances at the table show a lot of zeroes. 
+
+```{r}
+# Check how many weather event types result in any recorded injuries
+cropTypes <- sum(cropByType_total$CROPDMGabs>0)/nrow(cropByType_total)*100
+```
+
+Compared to property damage, less crop damage is reported, with only `r cropTypes`% of weather types resulting in crop damage. 
+
+Next, let's actually take a look at the most damaging weather types. We do this with a table to enumerate the top 10 most damaging weather types, in terms of total and average crop damage reported/recorded.
+
+
+**Total Crop Damage**
+
+```{r results="asis"}
+# Print the top 10 most damaging weather types, by total crop damage
+print(xtable(cropByType_total[1:10,1:2]), type='html')
+```
+
+
+**Average Crop Damage**
+
+```{r results="asis"}
+# Print the top 10 most damaging weather types, by mean crop damage
+print(xtable(cropByType_mean[1:10,1:2]), type='html')
+```
+
+Drought, floods and ice storms have caused the most damage overall since 1990, with excessive wetness, damaging frost, and hurricanes being the most consistently damaging. It is again worth noting that there is significant redundancy in the reported weather types and proper treatment of these event types would increase the accuracy of this analysis.
+
+#### Overall economic effects of severe weather
+
+Now let's combine the crop and property damage data and look at the aggregate as a reflection of population health effects.
+
+```{r}
+dmgByType_total <- merge(cropByType_total, propByType_total, by="EVTYPE")
+dmgByType_total$TOTAL <- dmgByType_total$CROPDMGabs + dmgByType_total$PROPDMGabs
+dmgByType_total <- dmgByType_total[order(-dmgByType_total$TOTAL),]
+dmgByType_mean <- merge(cropByType_mean, propByType_mean, by="EVTYPE")
+dmgByType_mean$TOTAL <- dmgByType_mean$CROPDMGabs + dmgByType_mean$PROPDMGabs
+dmgByType_mean <- dmgByType_mean[order(-dmgByType_mean$TOTAL),]
+```
+
+We then print the top 10 by mean and total, sorted by the sum of damages caused.
+
+
+**Total damage caused since 1990**
+
+```{r results="asis"}
+print(xtable(dmgByType_total[1:10,1:4]), type='html')
+```
+
+
+**Mean damage caused per weather event**
+
+```{r results="asis"}
+print(xtable(dmgByType_mean[1:10,1:4]), type='html')
+```
+
+
+We can visualize this in a two-panel horizontal barplot of the most harmful weather types (in descending order, sorted by total harm and total mean harm).
+
+```{r results="asis", fig.width=9}
+# Prepare the data to be plotted
+par(mar=c(5,7,3,3), mfrow=c(1,2))
+colorsUsed <- c("darkgreen","navajowhite4")
+# Plot total effects
+barplot(t(as.matrix(dmgByType_total[20:1,2:3])),
+        horiz=T,
+        names.arg = dmgByType_total[20:1,1],
+        las=1,
+        main="Total economic damage (crop/property)\n due to weather events since 1990",
+        xlab="Mean damage per event ($ USD)",
+        col=colorsUsed,
+        cex.main=0.8,
+        cex.names=0.6
+)
+legend("right", col=colorsUsed, legend = c("Crop Dmg","Property Dmg"), pch=19)
+# Plot mean effects
+barplot(t(as.matrix(dmgByType_mean[20:1,2:3])),
+        horiz=T,
+        names.arg = dmgByType_mean[20:1,1],
+        las=1,
+        main="Average economic damage (crop/property)\n due to weather events since 1990",
+        xlab="Mean damage per event ($ USD)",
+        col=colorsUsed,
+        cex.main=0.8,
+        cex.names=0.6
+)
+legend("right", col=colorsUsed, legend = c("Crop Dmg","Property Dmg"), pch=19)
+```
+
+Floods, hurricanes, and storm surges have caused the most damage overall since 1990, with tornadoes, heavy rain, and hurricanes being the most consistently damaging.
+
 ## Conclusions
 
-*At most 3 figures*
+In terms of population health, excessive heat, tornadoes and floods have caused the most population effects overall since 1990, with heat waves, tropical storms, and wildfires being the most consistently damaging (injuries/fatalities). 
+
+Economically, floods, hurricanes, and storm surges have caused the most damage overall since 1990, with tornadoes, heavy rain, and hurricanes being the most consistently damaging. This is reflected in the property damage data, however if we look just at agricultural damage, drought, floods and ice storms have caused the most damage overall since 1990, with excessive wetness, damaging frost, and hurricanes being the most consistently damaging.
+
+It is worth noting that there is significant redundancy in the reported weather types (e.g. excessive heat, extreme heat, heat waves) as well as inconsistent coding of event types over time (e.g. Wintry mix, Wintery mix, WINTRY MIX) and proper pre-treatment of these event types would increase the accuracy of this analysis.
